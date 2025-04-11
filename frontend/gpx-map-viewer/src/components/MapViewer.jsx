@@ -1,27 +1,44 @@
-import React, { useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import React, { useState, useEffect, useRef } from "react";
+import "ol/ol.css";  // OpenLayers CSS
+import { Map, View } from "ol";
+import TileLayer from "ol/layer/Tile";
+import XYZ from "ol/source/XYZ"; // To use Mapbox or other tile sources
+import { fromLonLat } from "ol/proj"; // For converting coordinates
+import { Style, Stroke } from "ol/style";
+import VectorLayer from "ol/layer/Vector";
+import VectorSource from "ol/source/Vector";
+import GeoJSON from "ol/format/GeoJSON";
+import * as extent from "ol/extent"; // Import extent functions from ol/extent
 
-function MapViewer({ selectedFiles }) {
+function MapViewer({ selectedFiles, setSelectedFiles }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const [fileBounds, setFileBounds] = useState({}); // ✅ Store bounds by filename
+  const [fileBounds, setFileBounds] = useState({});
+  const [layerMap, setLayerMap] = useState({});
 
   useEffect(() => {
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: "https://demotiles.maplibre.org/style.json",
-      center: [151.21, -33.87],
-      zoom: 10,
+    const map = new Map({
+      target: mapContainerRef.current,
+      layers: [
+        new TileLayer({
+          source: new XYZ({
+            url: "https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          }),
+        }),
+      ],
+      view: new View({
+        center: fromLonLat([151.21, -33.87]),  // Sydney coordinates
+        zoom: 10,
+      }),
     });
 
     mapInstanceRef.current = map;
 
-    return () => map.remove();
+    return () => map.setTarget(undefined);
   }, []);
 
   useEffect(() => {
-    if (!mapInstanceRef.current || selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0) return;
 
     selectedFiles.forEach(async (fileName) => {
       const encodedFileName = encodeURIComponent(fileName);
@@ -46,62 +63,110 @@ function MapViewer({ selectedFiles }) {
       };
 
       const bounds = trkpts.reduce(
-        (b, coord) => b.extend(coord),
-        new maplibregl.LngLatBounds(trkpts[0], trkpts[0])
+        (b, coord) => extent.extend(b, [coord[0], coord[1]]),
+        extent.createEmpty()  // Initialize empty extent
       );
 
+      const vectorSource = new VectorSource({
+        features: [new GeoJSON().readFeature(geojson)],
+      });
+
+      const vectorLayer = new VectorLayer({
+        source: vectorSource,
+        style: new Style({
+          stroke: new Stroke({
+            color: "#FF5733",  // Line color
+            width: 3,
+          }),
+        }),
+      });
+
       const map = mapInstanceRef.current;
+      map.addLayer(vectorLayer);
 
-      if (map.getLayer(fileName)) map.removeLayer(fileName);
-      if (map.getSource(fileName)) map.removeSource(fileName);
-
-      map.addSource(fileName, {
-        type: "geojson",
-        data: geojson,
-      });
-
-      map.addLayer({
-        id: fileName,
-        type: "line",
-        source: fileName,
-        paint: {
-          "line-color": "#FF5733",
-          "line-width": 3,
-        },
-      });
-
+      // Store the bounds and layers for removal
       setFileBounds((prev) => ({ ...prev, [fileName]: bounds }));
+      setLayerMap((prev) => ({ ...prev, [fileName]: vectorLayer }));
     });
   }, [selectedFiles]);
 
-  // ✅ Zoom handler
   const handleZoomToFile = (fileName) => {
     const map = mapInstanceRef.current;
     const bounds = fileBounds[fileName];
+
     if (map && bounds) {
-      map.fitBounds(bounds, { padding: 40, duration: 1000 });
+      const view = map.getView();
+      view.fit(bounds, { padding: [40, 40, 40, 40], duration: 1000 });
+    }
+  };
+
+  const handleRemoveFile = async (fileName) => {
+    const encodedFileName = encodeURIComponent(fileName);
+    try {
+      const res = await fetch(`http://localhost:8000/uploads/${encodedFileName}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete the file");
+      }
+
+      const map = mapInstanceRef.current;
+      const layer = layerMap[fileName];
+      if (layer) {
+        map.removeLayer(layer);
+      }
+
+      setSelectedFiles((prevFiles) => prevFiles.filter((file) => file !== fileName));
+      setFileBounds((prev) => {
+        const newState = { ...prev };
+        delete newState[fileName];
+        return newState;
+      });
+      setLayerMap((prev) => {
+        const newState = { ...prev };
+        delete newState[fileName];
+        return newState;
+      });
+    } catch (error) {
+      console.error("Error removing file:", error);
+      alert("Failed to remove the file. Please try again.");
     }
   };
 
   return (
     <div>
-      {/* ✅ Menu with clickable file names */}
+      {/* Menu with clickable file names and delete buttons */}
       <div style={{ marginBottom: "8px" }}>
         {selectedFiles.map((fileName) => (
-          <button
-            key={fileName}
-            onClick={() => handleZoomToFile(fileName)}
-            style={{
-              marginRight: "8px",
-              padding: "6px 12px",
-              cursor: "pointer",
-              backgroundColor: "#eee",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-            }}
-          >
-            {fileName}
-          </button>
+          <div key={fileName} style={{ display: "flex", alignItems: "center", marginBottom: "6px" }}>
+            <button
+              onClick={() => handleZoomToFile(fileName)}
+              style={{
+                marginRight: "8px",
+                padding: "6px 12px",
+                cursor: "pointer",
+                backgroundColor: "#eee",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+              }}
+            >
+              {fileName}
+            </button>
+            <button
+              onClick={() => handleRemoveFile(fileName)}
+              style={{
+                padding: "6px 12px",
+                cursor: "pointer",
+                backgroundColor: "#f44336",
+                color: "white",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+              }}
+            >
+              Remove
+            </button>
+          </div>
         ))}
       </div>
       <div ref={mapContainerRef} style={{ height: "600px", width: "100%" }} />
