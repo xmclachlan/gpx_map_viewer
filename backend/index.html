@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GPX Map Viewer</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/ol@7.3.0/ol.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div id="menu">
+        <h1>GPX Map Viewer</h1>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+          <h2>Upload GPX File</h2>
+          <form id="upload-form">
+            <input type="file" id="file-input" accept=".gpx" required />
+            <button type="submit" class="upload-btn">Upload</button>
+          </form>
+          <div id="upload-progress" class="progress-bar">
+            <div class="progress"></div>
+          </div>
+        </div>
+
+        <div class="file-list-header">
+          <h2>Available Tracks</h2>
+          <div class="loader" id="loader"></div>
+        </div>
+        <ul id="file-list">
+          <!-- GPX files will be listed here dynamically -->
+        </ul>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ol@7.3.0/dist/ol.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
