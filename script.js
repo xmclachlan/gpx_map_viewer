@@ -1,3 +1,5 @@
+// Test April 13, 2140
+
 // Global variables to store track layers and their metadata
 const trackLayers = new Map();
 let map;
@@ -139,19 +141,60 @@ async function loadAvailableFiles() {
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'file-actions';
             
+            // Create toggle view button with dynamic text based on loaded state
             const viewBtn = document.createElement('button');
             viewBtn.className = 'view-btn';
-            viewBtn.textContent = 'View Track';
-            viewBtn.addEventListener('click', () => loadAndDisplayTrack(filename));
+            // Set initial text based on whether track is loaded
+            viewBtn.textContent = trackLayers.has(filename) ? 'Hide Track' : 'View Track';
+            viewBtn.addEventListener('click', function() {
+                if (trackLayers.has(filename)) {
+                    // If track is loaded, remove it
+                    removeTrack(filename);
+                    this.textContent = 'View Track';
+                } else {
+                    // If track is not loaded, load it
+                    loadAndDisplayTrack(filename);
+                    this.textContent = 'Hide Track';
+                }
+            });
             
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-btn';
-            removeBtn.textContent = 'Remove';
-            removeBtn.addEventListener('click', () => removeTrack(filename));
-            removeBtn.disabled = !trackLayers.has(filename);
+            // Add toggle visibility button (only shows when track is loaded)
+            const visibilityBtn = document.createElement('button');
+            visibilityBtn.className = 'visibility-btn';
+            visibilityBtn.textContent = trackLayers.has(filename) && trackLayers.get(filename).visible ? 'Hide' : 'Show';
+            visibilityBtn.style.display = trackLayers.has(filename) ? 'inline-block' : 'none';
+            visibilityBtn.addEventListener('click', function() {
+                if (trackLayers.has(filename)) {
+                    const trackData = trackLayers.get(filename);
+                    const newVisibility = !trackData.visible;
+                    toggleTrackVisibility(filename, newVisibility);
+                    this.textContent = newVisibility ? 'Hide' : 'Show';
+                }
+            });
+            
+            // Add delete track button (only shows when track is loaded)
+            const deleteTrackBtn = document.createElement('button');
+            deleteTrackBtn.className = 'delete-track-btn';
+            deleteTrackBtn.textContent = 'Remove Track';
+            deleteTrackBtn.style.display = trackLayers.has(filename) ? 'inline-block' : 'none';
+            deleteTrackBtn.addEventListener('click', function() {
+                removeTrack(filename);
+                // Update button visibility after track is removed
+                this.style.display = 'none';
+                visibilityBtn.style.display = 'none';
+                viewBtn.textContent = 'View Track';
+            });
+            
+            // Delete file button (always visible)
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.textContent = 'Delete File';
+            deleteBtn.addEventListener('click', () => deleteFileFromServer(filename));
             
             actionsDiv.appendChild(viewBtn);
-            actionsDiv.appendChild(removeBtn);
+            actionsDiv.appendChild(visibilityBtn);
+            actionsDiv.appendChild(deleteTrackBtn);
+            actionsDiv.appendChild(deleteBtn);
             
             li.appendChild(nameDiv);
             li.appendChild(actionsDiv);
@@ -244,6 +287,27 @@ async function loadAndDisplayTrack(filename) {
             displayName: trackName,
             category: 'Uncategorized'
         });
+        
+        // Update the view button to say "Hide Track"
+        const fileItem = document.querySelector(`.file-item[data-filename="${filename}"]`);
+        if (fileItem) {
+            const viewBtn = fileItem.querySelector('.view-btn');
+            if (viewBtn) {
+                viewBtn.textContent = 'Hide Track';
+            }
+            
+            // Show the visibility and delete track buttons
+            const visibilityBtn = fileItem.querySelector('.visibility-btn');
+            if (visibilityBtn) {
+                visibilityBtn.style.display = 'inline-block';
+                visibilityBtn.textContent = 'Hide'; // Default to visible when first loaded
+            }
+            
+            const deleteTrackBtn = fileItem.querySelector('.delete-track-btn');
+            if (deleteTrackBtn) {
+                deleteTrackBtn.style.display = 'inline-block';
+            }
+        }
         
         // Create or update the track controls
         updateTrackControls();
@@ -366,12 +430,6 @@ function updateTrackControls() {
         
         // Add details to file item
         fileItem.appendChild(detailsDiv);
-        
-        // Update remove button state
-        const removeBtn = fileItem.querySelector('.remove-btn');
-        if (removeBtn) {
-            removeBtn.disabled = false;
-        }
     });
 }
 
@@ -382,6 +440,15 @@ function toggleTrackVisibility(filename, visible) {
         trackData.visible = visible;
         trackData.layer.setVisible(visible);
         trackLayers.set(filename, trackData);
+        
+        // Update the visibility checkbox in the track details
+        const fileItem = document.querySelector(`.file-item[data-filename="${filename}"]`);
+        if (fileItem) {
+            const visibilityCheckbox = fileItem.querySelector('.track-details input[type="checkbox"]');
+            if (visibilityCheckbox) {
+                visibilityCheckbox.checked = visible;
+            }
+        }
     }
 }
 
@@ -428,17 +495,70 @@ function removeTrack(filename) {
         // Update UI
         const fileItem = document.querySelector(`.file-item[data-filename="${filename}"]`);
         if (fileItem) {
+            // Update view button text
+            const viewBtn = fileItem.querySelector('.view-btn');
+            if (viewBtn) {
+                viewBtn.textContent = 'View Track';
+            }
+            
+            // Hide the visibility and delete track buttons
+            const visibilityBtn = fileItem.querySelector('.visibility-btn');
+            if (visibilityBtn) {
+                visibilityBtn.style.display = 'none';
+            }
+            
+            const deleteTrackBtn = fileItem.querySelector('.delete-track-btn');
+            if (deleteTrackBtn) {
+                deleteTrackBtn.style.display = 'none';
+            }
+            
+            // Remove track details section
             const detailsDiv = fileItem.querySelector('.track-details');
             if (detailsDiv) {
                 detailsDiv.remove();
             }
-            
-            const removeBtn = fileItem.querySelector('.remove-btn');
-            if (removeBtn) {
-                removeBtn.disabled = true;
-            }
         }
     }
+}
+
+function deleteFileFromServer(filename) {
+    if (!confirm(`Are you sure you want to permanently delete "${filename}"? This cannot be undone.`)) {
+        return; // User cancelled
+    }
+    
+    const loader = document.getElementById('loader');
+    loader.style.display = 'block';
+    
+    fetch(`/uploads/${filename}`, {
+        method: 'DELETE',
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Remove the track from map if it's loaded
+        if (trackLayers.has(filename)) {
+            removeTrack(filename);
+        }
+        
+        // Remove the file item from the list
+        const fileItem = document.querySelector(`.file-item[data-filename="${filename}"]`);
+        if (fileItem) {
+            fileItem.remove();
+        }
+        
+        alert(`File "${filename}" deleted successfully`);
+    })
+    .catch(error => {
+        console.error('Error deleting file:', error);
+        alert(`Error deleting file: ${error.message}`);
+    })
+    .finally(() => {
+        loader.style.display = 'none';
+    });
 }
 
 // Zoom the map to fit a track
@@ -451,6 +571,53 @@ function zoomToTrack(filename) {
             duration: 1000
         });
     }
+}
+
+// Add the deleteFileFromServer function
+function deleteFileFromServer(filename) {
+    if (!confirm(`Are you sure you want to permanently delete "${filename}"? This cannot be undone.`)) {
+        return; // User cancelled
+    }
+    
+    const loader = document.getElementById('loader');
+    loader.style.display = 'block';
+    
+    fetch(`/uploads/${filename}`, {
+        method: 'DELETE',
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Remove the track from map if it's loaded
+        if (trackLayers.has(filename)) {
+            removeTrack(filename);
+        }
+        
+        // Remove the file item from the list
+        const fileItem = document.querySelector(`.file-item[data-filename="${filename}"]`);
+        if (fileItem) {
+            fileItem.remove();
+        }
+        
+        // If file list is now empty, show the "No GPX files available" message
+        const fileList = document.getElementById('file-list');
+        if (fileList.children.length === 0) {
+            fileList.innerHTML = '<li class="file-item">No GPX files available</li>';
+        }
+        
+        alert(`File "${filename}" deleted successfully`);
+    })
+    .catch(error => {
+        console.error('Error deleting file:', error);
+        alert(`Error deleting file: ${error.message}`);
+    })
+    .finally(() => {
+        loader.style.display = 'none';
+    });
 }
 
 // Generate a random color for track lines

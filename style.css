@@ -142,6 +142,54 @@ button {
     background-color: #d32f2f;
 }
 
+.delete-btn {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    margin-left: 5px;
+    border-radius: 4px;
+}
+
+.delete-btn:hover {
+    background-color: #d32f2f;
+}
+
+.visibility-btn {
+    background-color: #FFA500; /* Orange color */
+    color: white;
+    margin-right: 4px;
+}
+
+.visibility-btn:hover {
+    background-color: #FF8C00; /* Darker orange */
+}
+
+.delete-track-btn {
+    background-color: #9C27B0; /* Purple color to distinguish from delete file */
+    color: white;
+    margin-right: 4px;
+}
+
+.delete-track-btn:hover {
+    background-color: #7B1FA2; /* Darker purple */
+}
+
+/* You may want to update the file-actions style to better accommodate multiple buttons */
+.file-actions {
+    display: flex;
+    flex-wrap: wrap; /* Allow buttons to wrap on narrow screens */
+    gap: 4px 6px; /* Row-gap Column-gap */
+    margin-bottom: 12px;
+}
+
+/* Make buttons a bit more compact when there are several of them */
+.file-actions button {
+    padding: 5px 10px;
+    font-size: 13px;
+}
+
 .file-list-header {
     display: flex;
     justify-content: space-between;

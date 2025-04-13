@@ -200,3 +200,17 @@ async def get_track_metadata(filename: str):
 if __name__ == "__main__":
     # Run the FastAPI app with uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.delete("/uploads/{filename}")
+async def delete_gpx_file(filename: str):
+    """Delete a specific GPX file"""
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            return {"message": f"File '{filename}' deleted successfully"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Error deleting file: {str(e)}")
+    else:
+        raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
